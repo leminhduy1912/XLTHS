@@ -1,71 +1,88 @@
-import scipy.io.wavfile
-import scipy.signal
-import matplotlib.pyplot as plt
-import python_speech_features
-import pandas as pd
-import seaborn as sns
+import numpy as np
+from matplotlib import pyplot as plt
+import scipy.io.wavfile as wav
+from numpy.lib import stride_tricks
 
-# Hàm lấy đường dẫn đến thư mục của một người nói
-def get_person_path(person):
-    return "C:/Users/minhd/OneDrive/Desktop/xlths bao cao/NguyenAmHuanLuyen-16k/" + person
+""" short time fourier transform of audio signal """
+def stft(sig, frameSize, overlapFac=0.5, window=np.hanning):
+    win = window(frameSize)
+    hopSize = int(frameSize - np.floor(overlapFac * frameSize))
 
-# Hàm lấy đường dẫn đến file âm thanh của một nguyên âm
-def get_vowel_path(person, vowel):
-    return f"{get_person_path(person)}/{vowel}.wav"
+    # zeros at beginning (thus center of 1st window should be for sample nr. 0)   
+    samples = np.append(np.zeros(int(np.floor(frameSize/2.0))), sig)    
+    # cols for windowing
+    cols = np.ceil( (len(samples) - frameSize) / float(hopSize)) + 1
+    # zeros at end (thus samples can be fully covered by frames)
+    samples = np.append(samples, np.zeros(frameSize))
 
-# Hàm hiển thị ảnh phổ từ file âm thanh
-def show_spectrogram(person, vowel, audio, sample_rate):
-    # Lọc tiếng ồn
-    audio = scipy.signal.filtfilt([1, 0.95], [1, -0.95], audio)
+    frames = stride_tricks.as_strided(samples, shape=(int(cols), frameSize), strides=(samples.strides[0]*hopSize, samples.strides[0])).copy()
+    frames *= win
 
-    # Chuyển đổi ma trận sos để khắc phục lỗi
-    sos = scipy.signal.butter(10, [300, 2800], btype='band', fs=sample_rate, output='sos')
-    sos = sos[:, :6]
+    return np.fft.rfft(frames)    
 
-    # Cách ly nguồn âm
-    audio = scipy.signal.sosfilt(sos, audio)
+""" scale frequency axis logarithmically """    
+def logscale_spec(spec, sr=44100, factor=20.):
+    timebins, freqbins = np.shape(spec)
 
-    # Tạo phổ tiếng nói
-    plt.figure(figsize=(8, 6))
-    plt.specgram(audio, Fs=sample_rate)
-    plt.title(f'Spectrogram - Person: {person}, Vowel: {vowel}')
-    plt.xlabel('Time (s)')
-    plt.ylabel('Frequency (Hz)')
-    
-    # Hiển thị ảnh
-    plt.show()
+    scale = np.linspace(0, 1, freqbins) ** factor
+    scale *= (freqbins-1)/max(scale)
+    scale = np.unique(np.round(scale))
 
-# Tạo DataFrame để lưu trữ dữ liệu
-data = {'Person': [], 'Vowel': [], 'F1': [], 'F2': [], 'F3': []}
+    # create spectrogram with new freq bins
+    newspec = np.complex128(np.zeros([timebins, len(scale)]))
+    for i in range(0, len(scale)):        
+        if i == len(scale)-1:
+            newspec[:,i] = np.sum(spec[:,int(scale[i]):], axis=1)
+        else:        
+            newspec[:,i] = np.sum(spec[:,int(scale[i]):int(scale[i+1])], axis=1)
 
-# Chọn ngẫu nhiên 4 người nói từ 21 người nói
-people = ["1", "5", "6", "8"]
+    # list center freq of bins
+    allfreqs = np.abs(np.fft.fftfreq(freqbins*2, 1./sr)[:freqbins+1])
+    freqs = []
+    for i in range(0, len(scale)):
+        if i == len(scale)-1:
+            freqs += [np.mean(allfreqs[int(scale[i]):])]
+        else:
+            freqs += [np.mean(allfreqs[int(scale[i]):int(scale[i+1])])]
 
-# Xử lý dữ liệu
-for person in people:
-    # Lặp qua các nguyên âm
-    for vowel in ["a", "i", "u", "e", "o"]:
-        # Đọc file âm thanh WAV
-        sample_rate, audio = scipy.io.wavfile.read(get_vowel_path(person, vowel))
+    return newspec, freqs
 
-        # Hiển thị ảnh phổ và xử lý dữ liệu
-        show_spectrogram(person, vowel, audio, sample_rate)
+""" plot spectrogram"""
+def plotstft(audiopath, binsize=2**10, plotpath=None, colormap="jet"):
+    samplerate, samples = wav.read(audiopath)
 
-        # Đo tần số formant
-        formant = python_speech_features.mfcc(audio, samplerate=sample_rate, nfft=1024)
+    s = stft(samples, binsize)
 
-        # Thêm dữ liệu vào DataFrame
-        data['Person'].extend([person] * len(formant[0]))
-        data['Vowel'].extend([vowel] * len(formant[0]))
-        data['F1'].extend(formant[0])
-        data['F2'].extend(formant[1])
-        data['F3'].extend(formant[2])
+    sshow, freq = logscale_spec(s, factor=1.0, sr=samplerate)
 
-# Tạo DataFrame từ dữ liệu
-df = pd.DataFrame(data)
+    ims = 20.*np.log10(np.abs(sshow)/10e-6) # amplitude to decibel
 
-# Vẽ biểu đồ sử dụng Seaborn
-plt.figure(figsize=(12, 8))
-sns.boxplot(x='Vowel', y='F1', data=df, hue='Person', palette='Set3')
-plt.title('Boxplot of F1 for each Vowel')
-plt.show()
+    timebins, freqbins = np.shape(ims)
+
+    print("timebins: ", timebins)
+    print("freqbins: ", freqbins)
+
+    plt.figure(figsize=(15, 7.5))
+    plt.imshow(np.transpose(ims), origin="lower", aspect="auto", cmap=colormap, interpolation="none")
+    plt.colorbar()
+
+    plt.xlabel("time (s)")
+    plt.ylabel("frequency (hz)")
+    plt.xlim([0, timebins-1])
+    plt.ylim([0, freqbins])
+
+    xlocs = np.float32(np.linspace(0, timebins-1, 5))
+    plt.xticks(xlocs, ["%.02f" % l for l in ((xlocs*len(samples)/timebins)+(0.5*binsize))/samplerate])
+    ylocs = np.int16(np.round(np.linspace(0, freqbins-1, 10)))
+    plt.yticks(ylocs, ["%.02f" % freq[i] for i in ylocs])
+
+    if plotpath:
+        plt.savefig(plotpath, bbox_inches="tight")
+    else:
+        plt.show()
+
+    plt.clf()
+
+    return ims
+filepath = "C:/Users/minhd/OneDrive/Desktop/xlths bao cao/NguyenAmHuanLuyen-16k/1/a.wav"
+ims = plotstft(filepath)

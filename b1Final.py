@@ -16,10 +16,10 @@ def plot_wideband_spectrogram(file_path, save_path):
     
 
     #D = librosa.amplitude_to_db(librosa.stft(y), ref=np.max)
-    D = librosa.amplitude_to_db(librosa.stft(y, window='hann'), ref=np.max)
+    D = librosa.amplitude_to_db(librosa.stft(y, window='hann',hop_length=4000), ref=np.max)
 
     # Vẽ đồ thị
-    plt.figure(figsize=(10, 4))
+    plt.figure(figsize=(7, 4))
     librosa.display.specshow(D, sr=sr, x_axis='time', y_axis='log')
     plt.colorbar(format='%+2.0f dB')
     plt.title('Wideband Spectrogram')
@@ -59,8 +59,3 @@ os.makedirs(save_folder, exist_ok=True)
 
 # Gọi hàm process_folders để xử lý ảnh phổ cho các thư mục và file nguyên âm ngẫu nhiên
 process_folders(data_folder)
-
-
-
-
-

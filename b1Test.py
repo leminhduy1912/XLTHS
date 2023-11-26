@@ -76,7 +76,7 @@ def apply_log_scale_to_spectrogram(spectrogram, sampling_rate=44100, factor=20.)
 
 def plot_spectrogram_from_wav_file(audio_path, person, vowel, frame_size=2**10, plot_path=None, colormap="jet"):
     """
-    Vẽ spectrogram và lưu nó xuống đĩa nếu được chỉ định.
+    Vẽ spectrogram và lưu nó xuống address nếu được chỉ định.
 
     Tham số:
     - audio_path (str): Đường dẫn đến file âm thanh WAV.

@@ -6,9 +6,15 @@ import random
 
 def plot_wideband_spectrogram(file_path, save_path):
     # Đọc file âm thanh WAV
-    y, sr = librosa.load(file_path)
+    #y, sr = librosa.load(file_path)
+    y, sr = librosa.load(file_path, sr=16000)
+    
 
+    print("Dữ liệu âm thanh (y):", y)
+    print("Tần số lấy mẫu (sr):", sr)
     # Tính toán phổ băng rộng
+    
+
     D = librosa.amplitude_to_db(librosa.stft(y), ref=np.max)
 
     # Vẽ đồ thị
@@ -52,5 +58,8 @@ os.makedirs(save_folder, exist_ok=True)
 
 # Gọi hàm process_folders để xử lý ảnh phổ cho các thư mục và file nguyên âm ngẫu nhiên
 process_folders(data_folder)
+
+
+
 
 

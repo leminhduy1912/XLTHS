@@ -15,7 +15,8 @@ def plot_wideband_spectrogram(file_path, save_path):
     # Tính toán phổ băng rộng
     
 
-    D = librosa.amplitude_to_db(librosa.stft(y), ref=np.max)
+    #D = librosa.amplitude_to_db(librosa.stft(y), ref=np.max)
+    D = librosa.amplitude_to_db(librosa.stft(y, window='hann'), ref=np.max)
 
     # Vẽ đồ thị
     plt.figure(figsize=(10, 4))
